@@ -1,0 +1,3 @@
+# ninja log v5
+0	15492	1731296300778636968	/home/gpu_0/BBNC/raft/utils/external/alt_cuda_corr/build/temp.linux-x86_64-3.10/correlation.o	8cf40e624b9895c5
+1	55943	1731296341206498633	/home/gpu_0/BBNC/raft/utils/external/alt_cuda_corr/build/temp.linux-x86_64-3.10/correlation_kernel.o	551309982e4cb37d
