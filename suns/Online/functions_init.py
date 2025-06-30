@@ -110,11 +110,26 @@ def init_online(bb, dims, dimsnb, network_input, pmaps_b, fff, thresh_pmap_float
     device = next(fff.parameters()).device
     start_batch_Seg = time.time()
     network_input = np.expand_dims(network_input[:, :rowspad, :colspad], axis=1)
-    network_input = torch.from_numpy(network_input)
+
+    # 对network_input的每张图都单独归一化至0-1
+    network_input_tensor = np.empty_like(network_input)
+    for i in range(network_input.shape[0]):
+        img = network_input[i]
+        min_val = np.percentile(img, 10)
+        max_val = img.max()
+        if max_val > min_val:
+            temp = (img - min_val) / (max_val - min_val)
+            # clip
+            network_input_tensor[i] = np.clip(temp, 0, 1)
+        else:
+            network_input_tensor[i] = img  # 如果全为常数，保持原样
+    
+
+    network_input_tensor = torch.from_numpy(network_input_tensor)
     # with tf.device('/GPU:0'):
     #     prob_map = fff.predict(network_input, batch_size=batch_size_init)
-    network_input = network_input.to(device)
-    prob_map = fff(network_input)
+    network_input_tensor = network_input_tensor.to(device)
+    prob_map = fff(network_input_tensor)
     prob_map = prob_map.squeeze()[:, :Lx, :Ly]
     prob_map = prob_map.detach().cpu().numpy()
     end_batch_Seg = time.time()
@@ -122,7 +137,7 @@ def init_online(bb, dims, dimsnb, network_input, pmaps_b, fff, thresh_pmap_float
     print('Total time of inference: {:4f} s'.format(batch_Seg))
 
     # import tifffile as tiff
-    # tiff.imwrite('test/network_input.tif', network_input, dtype='float32')
+    # tiff.imwrite('test/network_input.tif', network_input_tensor.squeeze().detach().cpu().numpy(), dtype='float32')
     # tiff.imwrite('test/prob_map.tif', prob_map, dtype='float32')
     
     # Threshold the probablity map to binary

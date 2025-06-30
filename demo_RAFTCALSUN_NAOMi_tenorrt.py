@@ -7,7 +7,7 @@ import configparser
 import os
 import queue
 os.environ['KMP_DUPLICATE_LIB_OK']='True'
-os.environ["CUDA_VISIBLE_DEVICES"] = '1'
+os.environ["CUDA_VISIBLE_DEVICES"] = '2'
 # os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 import cv2
 import time
@@ -58,7 +58,8 @@ if __name__ == '__main__':
 
     # test file
     parser.add_argument('--model_path', default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_scale_10_stack_28_50mW_fton10mW/', help='path to the trained model')
-    parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/suns_h5/0323/Weights/model_best4220.pth', help='path to the trained model')
+    # parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/suns_h5/0323/Weights/model_best4220.pth', help='path to the trained model')
+    parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/0629/Weights/model_latest.pth', help='path to the trained model')
     parser.add_argument('--gt_flow', type=str, nargs='+', default=None, 
                         help='test file for evaluation')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
@@ -128,29 +129,28 @@ if __name__ == '__main__':
     update_baseline = args_eval.update_baseline
 
     Params_post={
-            # minimum area of a neuron (unit: pixels).
-            'minArea': 80, 
-            # average area of a typical neuron (unit: pixels) 
-            'avgArea': 360,
-            # uint8 threshould of probablity map (uint8 variable, = float probablity * 256 - 1)
-            'thresh_pmap': 160, 
-            # values higher than "thresh_mask" times the maximum value of the mask are set to one.
-            'thresh_mask': 0.4, 
-            # maximum COM distance of two masks to be considered the same neuron in the initial merging (unit: pixels)
-            'thresh_COM0': 3, 
-            # maximum COM distance of two masks to be considered the same neuron (unit: pixels)
-            'thresh_COM': 6, 
-            # minimum IoU of two masks to be considered the same neuron
-            'thresh_IOU': 0.5, 
-            # minimum consume ratio of two masks to be considered the same neuron 
-            'thresh_consume': 0.7, 
-            # minimum consecutive number of frames of active neurons
-            'cons': 8
-        }
+                # minimum area of a neuron (unit: pixels).
+                'minArea': 70, 
+                # average area of a typical neuron (unit: pixels) 
+                'avgArea': 180,
+                # uint8 threshould of probablity map (uint8 variable, = float probablity * 256 - 1)
+                'thresh_pmap': 170, 
+                # values higher than "thresh_mask" times the maximum value of the mask are set to one.
+                'thresh_mask': 0.3, 
+                # maximum COM distance of two masks to be considered the same neuron in the initial merging (unit: pixels)
+                'thresh_COM0': 2, 
+                # maximum COM distance of two masks to be considered the same neuron (unit: pixels)
+                'thresh_COM': 6, 
+                # minimum IoU of two masks to be considered the same neuron
+                'thresh_IOU': 0.5, 
+                # minimum consume ratio of two masks to be considered the same neuron 
+                'thresh_consume': 0.7, 
+                # minimum consecutive number of frames of active neurons
+                'cons': 4}
 
     max_neuron_num = args_eval.max_neuron_num
 
-    root_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_test_lowbg/'
+    root_path = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_nodentrites/'
     # root_path = '/mnt/nas01/LSR/DATA/2p/'
     # get the list of directories in the root path
     # directories = [d for d in os.listdir(root_path) if os.path.isdir(os.path.join(root_path, d))]
@@ -176,7 +176,7 @@ if __name__ == '__main__':
     tiff_files = [filename for filename in all_files if filename.endswith('.tiff')]
     tiff_files.sort()
 
-    save_path = os.path.join(root_path, 'result', 'scale_10', '50mW', 'RAFTCAD_result_multiscale_scale_10_stack_16_50mW_150')
+    save_path = os.path.join(root_path, 'result', 'scale_10', '50mW', 'RAFTCAD_result_multiscale_scale_10_stack_16_50mW_170')
     p = mp.Pool()
 
     if not os.path.exists(save_path):
@@ -260,7 +260,7 @@ if __name__ == '__main__':
             
             start_batch_Seg = time.time()
             frames_init_real = video_adjust_copy.shape[0]
-            med_frame3, segs_all, recent_frames = init_online_Autothreshold(
+            med_frame3, segs_all, recent_frames = init_online(
             video_adjust_copy, dims, dimsnb, video_input, pmaps_b_init, fff, thresh_pmap_float, Params_post, \
             med_frame2, mask2, bf, fft_object_b, fft_object_c, \
             useSF=False, useTF=False, useSNR=False, med_subtract=False, \
@@ -412,7 +412,7 @@ if __name__ == '__main__':
                 # tiff.imwrite('test/frames_prob.tif', frames_prob, dtype='float32')
                 
                 # first step of post-processing
-                segs = separate_neuron_online_batch_Autothreshold(frames_prob, pmaps_b, thresh_pmap_float, minArea, avgArea, useWT=False, useMP=True, p=p)
+                segs = separate_neuron_online_batch(frames_prob, pmaps_b, thresh_pmap_float, minArea, avgArea, useWT=False, useMP=True, p=p)
                 segs_all.extend(segs)
 
                 totalmasks, neuronstate, COMs, areas, probmapID = segs_results(segs_all[t_merge:])
@@ -485,7 +485,7 @@ if __name__ == '__main__':
 
             output_file = os.path.join(save_path, '{}_reg.tiff'.format(session_name))
             # save_image(video_array, str(data_property["data_type"]), output_file)
-            # save_image(video_array, 'uint16', output_file)
+            save_image(video_array, 'uint16', output_file)
 
             savemat(os.path.join(save_path, '{}_Output_Masks.mat'.format(session_name)), \
         {'Masks':Masks, 'times_active':times_active}, do_compression=True)
