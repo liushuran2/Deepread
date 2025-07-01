@@ -187,6 +187,7 @@ if __name__ == '__main__':
             # fnames = 'Fsim_clean.tiff'
             session_name = fnames.split('/')[-1].split('.')[0]
             datapath = loadframe_path + fnames
+            # datapath = '/mnt/nas01/LSR/DATA/NAOMi_dataset/depthrange_200_nodentrites_lighter/NA_0.80_Hz_30_D_0_pow_130/1/Fsim_30mW.tiff'
             video_raw = tiff.imread(datapath).astype(np.float32)
             p1_val = np.percentile(video_raw, 1)
             p99_val = np.percentile(video_raw, 99)
