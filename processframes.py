@@ -46,18 +46,24 @@ from suns.PreProcessing.preprocessing_functions import preprocess_video, \
 from tensorRT.loadengine import load_engine
 
 def process_frames_init(video_raw, Params_post, batch_size, overlap_size, engine, fff, p):
+    # Preprocessing
     video_raw = preprocessing_img(video_raw, 'robust')
     video_raw =  torch.from_numpy(video_raw.copy())
     template = torch.median(video_raw, dim=0, keepdim=False)[0]
 
+    # image enhancement
     video_adjust = test_batch_tensorrt(engine, video_raw, template, batch_size, overlap_size)
     video_adjust_copy = video_adjust.copy()
 
+    # Rapid segmentation
     Masks = seg_batch(video_adjust_copy, fff, p, Params_post, 20)
     Masks, paralist = fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=2)
 
     # extract traces
     traces = extrace_trace(Masks, video_adjust, frame_start=0)
+
+    # TODO: Neural embedding
+
     return video_adjust, template, Masks, traces
 
 def process_frames_online(video_raw, template, batch_size, overlap_size, engine, Masks):
@@ -70,6 +76,8 @@ def process_frames_online(video_raw, template, batch_size, overlap_size, engine,
 
     # extract traces
     traces = extrace_trace(Masks, video_adjust, frame_start=0)
+
+    # TODO: Neural embedding
 
     return video_adjust_copy, traces
 
