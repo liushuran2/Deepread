@@ -17,6 +17,7 @@ from suns.PostProcessing.par3 import fastthreshold, fastthreshold_auto
 from suns.PostProcessing.seperate_neurons import separate_neuron
 import tensorflow as tf
 import torch
+import cv2
 
 
 def plan_fft2(dims1):
@@ -270,3 +271,52 @@ def init_online_Autothreshold(bb, dims, dimsnb, network_input, pmaps_b, fff, thr
 
     return med_frame3, segs_init, recent_frames
 
+def fit_and_draw_ellipse(binary_mask, ELLIPSE_ASPECT_RATIO_THRESHOLD=3):
+    # 找轮廓
+    h, w = binary_mask.shape
+    mask_uint8 = binary_mask.astype(np.uint8) * 255
+    contours, _ = cv2.findContours(mask_uint8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+    if len(contours) == 0 or len(contours[0]) < 5:
+        return None, None
+
+    # 拟合椭圆
+    ellipse = cv2.fitEllipse(contours[0])
+    (x, y), (MA, ma), angle = ellipse  # MA: 短, ma: 长
+
+    if ma / MA > ELLIPSE_ASPECT_RATIO_THRESHOLD:
+        return None, None
+
+    # 创建 uint8 类型的空白图像
+    ellipse_mask = np.zeros((h, w), dtype=np.uint8)
+
+    # 绘制填充的椭圆：中心、轴长、角度、起始角度、结束角度、颜色、厚度
+    cv2.ellipse(ellipse_mask, ellipse, color=1, thickness=-1)  # 填充椭圆
+
+    # 转换为布尔类型 mask
+    ellipse_mask = ellipse_mask.astype(bool)
+
+    # 返回 mask 和参数
+    return ellipse_mask, {
+        'center': (x, y),
+        'major_axis': MA,
+        'minor_axis': ma,
+        'angle': angle
+    }
+
+def fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=3):
+    n, h, w = Masks.shape
+    elliptical_masks = []
+
+    # === 处理每一个神经元的 mask ===
+    ellipse_params_list = []
+    for i in range(n):
+        mask = Masks[i]
+        fitted_mask, params = fit_and_draw_ellipse(mask, ELLIPSE_ASPECT_RATIO_THRESHOLD)
+        if fitted_mask is not None:
+            elliptical_masks.append(fitted_mask)
+            ellipse_params_list.append(params)
+
+    # === 保存结果到 mat 文件 ===
+    elliptical_masks = np.array(elliptical_masks)  # shape: (m, h, w)
+
+    return elliptical_masks, ellipse_params_list

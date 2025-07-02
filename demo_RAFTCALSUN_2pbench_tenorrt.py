@@ -33,7 +33,7 @@ from utils.frame_utils import *
 from model.loss import sequence_loss
 from suns.Network.shallow_unet import get_shallow_unet
 from suns.Network.shallow_unet import ShallowUNet
-from suns.Online.functions_init import init_online, plan_fft2
+from suns.Online.functions_init import init_online, plan_fft2, fit_and_draw_ellipse_list
 from suns.Online.functions_online import merge_2, merge_2_nocons, merge_complete, select_cons, \
     preprocess_online_batch, CNN_online_batch, separate_neuron_online_batch, refine_seperate_cons_online, final_merge, extrace_trace
 from suns.PostProcessing.combine import segs_results, unique_neurons2_simp, \
@@ -130,11 +130,11 @@ if __name__ == '__main__':
 
     Params_post={
             # minimum area of a neuron (unit: pixels).
-            'minArea': 100, 
+            'minArea': 60, 
             # average area of a typical neuron (unit: pixels) 
             'avgArea': 180,
             # uint8 threshould of probablity map (uint8 variable, = float probablity * 256 - 1)
-            'thresh_pmap': 130, 
+            'thresh_pmap': 180, 
             # values higher than "thresh_mask" times the maximum value of the mask are set to one.
             'thresh_mask': 0.4, 
             # maximum COM distance of two masks to be considered the same neuron in the initial merging (unit: pixels)
@@ -483,6 +483,9 @@ if __name__ == '__main__':
                 # final merging
                 Masks_2, times_active = final_merge(tuple_temp, Params_post)
                 Masks = np.reshape(Masks_2.toarray(), (Masks_2.shape[0], Lx, Ly)).astype('bool')
+
+                # fit eps
+                Masks, paralist = fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=2)
 
                 # normalize the output
                 video_array = np.stack(frame_list, axis=0).squeeze().astype(np.float32)

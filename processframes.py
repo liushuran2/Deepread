@@ -34,7 +34,7 @@ from utils.frame_utils import *
 from model.loss import sequence_loss
 from suns.Network.shallow_unet import get_shallow_unet
 from suns.Network.shallow_unet import ShallowUNet
-from suns.Online.functions_init import init_online, plan_fft2
+from suns.Online.functions_init import init_online, plan_fft2, fit_and_draw_ellipse_list
 from suns.Online.functions_online import merge_2, merge_2_nocons, merge_complete, select_cons, \
     preprocess_online_batch, CNN_online_batch, separate_neuron_online_batch, refine_seperate_cons_online, final_merge
 from suns.PostProcessing.combine import segs_results, unique_neurons2_simp, \
@@ -159,6 +159,7 @@ def process_frames_init(video_raw, Params_post, batch_size, overlap_size, engine
     video_adjust_copy = video_adjust.copy()
 
     Masks = seg_batch(video_adjust_copy, fff, p, Params_post, 20)
+    Masks, paralist = fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=2)
 
     # extract traces
     traces = extrace_trace(Masks, video_adjust, frame_start=0)
