@@ -45,6 +45,34 @@ from suns.PreProcessing.preprocessing_functions import preprocess_video, \
     SNR_normalization, median_normalization, median_calculation, find_dataset, preprocess_complete
 from tensorRT.loadengine import load_engine
 
+def process_frames_init(video_raw, Params_post, batch_size, overlap_size, engine, fff, p):
+    video_raw = preprocessing_img(video_raw, 'robust')
+    video_raw =  torch.from_numpy(video_raw.copy())
+    template = torch.median(video_raw, dim=0, keepdim=False)[0]
+
+    video_adjust = test_batch_tensorrt(engine, video_raw, template, batch_size, overlap_size)
+    video_adjust_copy = video_adjust.copy()
+
+    Masks = seg_batch(video_adjust_copy, fff, p, Params_post, 20)
+    Masks, paralist = fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=2)
+
+    # extract traces
+    traces = extrace_trace(Masks, video_adjust, frame_start=0)
+    return video_adjust, template, Masks, traces
+
+def process_frames_online(video_raw, template, batch_size, overlap_size, engine, Masks):
+    video_raw = preprocessing_img(video_raw, 'robust')
+    video_raw =  torch.from_numpy(video_raw.copy())
+    template = torch.median(video_raw, dim=0, keepdim=False)[0]
+
+    video_adjust = test_online_tensorrt(engine, video_raw, template, batch_size, overlap_size)
+    video_adjust_copy = video_adjust.copy()
+
+    # extract traces
+    traces = extrace_trace(Masks, video_adjust, frame_start=0)
+
+    return video_adjust_copy, traces
+
 def extrace_trace(Masks, prob_map, frame_start=0):
     N = len(Masks) # component number
     # print('Neuron number: ', N)
@@ -150,20 +178,74 @@ def test_batch_tensorrt(engine, data, video_template, batch_size=12, overlap_siz
 
     return video_array
 
-def process_frames_init(video_raw, Params_post, batch_size, overlap_size, engine, fff, p):
-    video_raw = preprocessing_img(video_raw, 'robust')
-    video_raw =  torch.from_numpy(video_raw.copy())
-    template = torch.median(video_raw, dim=0, keepdim=False)[0]
+def test_online_tensorrt(engine, data, video_template, batch_size=12, overlap_size=4):
+    """ Create test tiff file for input"""
+    import pycuda.autoinit  # This is needed to initialize the PyCUDA driver
+    context = engine.create_execution_context()
+    (nframes, Lx, Ly) = data.shape
 
-    video_adjust = test_batch_tensorrt(engine, video_raw, template, batch_size, overlap_size)
-    video_adjust_copy = video_adjust.copy()
+    image = data.unsqueeze(0).unsqueeze(2)
+    template = video_template.unsqueeze(0).unsqueeze(0)
 
-    Masks = seg_batch(video_adjust_copy, fff, p, Params_post, 20)
-    Masks, paralist = fit_and_draw_ellipse_list(Masks, ELLIPSE_ASPECT_RATIO_THRESHOLD=2)
+    batchsize, timepoints, c, h, w = image.shape
+    template = template.contiguous()
 
-    # extract traces
-    traces = extrace_trace(Masks, video_adjust, frame_start=0)
-    return video_adjust, template, Masks, traces
+    # time to batch
+    template = template.view(1, c, h, w).detach().cpu().numpy()
+    image = image.view(batchsize * timepoints, c, h, w).detach().cpu().numpy()
+
+    # rigid correction
+    for t in range(timepoints):
+        img2rigid = image[t,0]
+        shifts, src_freq, phasediff = register_translation(img2rigid, template[0,0], 10)
+        img_rigid = apply_shift_iteration(img2rigid, (-shifts[0], -shifts[1]))
+        image[t,0] = img_rigid
+
+    # 分配缓冲区
+    output_data = np.empty([1, 1, batch_size + 2 * overlap_size, 512, 512], dtype=np.float32)
+    input_data = np.concatenate((image, template), axis=0)
+
+    # 分配CUDA内存
+    d_input = cuda.mem_alloc(input_data.nbytes)
+    d_output = cuda.mem_alloc(output_data.nbytes)
+
+    # 将输入数据复制到GPU
+    cuda.memcpy_htod(d_input, input_data)
+    # 执行推理
+    bindings = [int(d_input), int(d_output)]
+    context.execute_v2(bindings)
+
+    # 将输出数据从GPU复制回主机
+    cuda.memcpy_dtoh(output_data, d_output)
+
+    # doublestage
+    data_fisrt = np.transpose(output_data, (0, 2, 1, 3, 4))
+    # template = np.median(data_fisrt, axis=1, keepdims=False)
+    # template = template.detach().cpu().numpy()
+    data_fisrt = data_fisrt.reshape(batchsize * timepoints, c, h, w)
+
+    # 分配缓冲区
+    output_data = np.empty([1 , 1, batch_size + 2 * overlap_size, 512, 512], dtype=np.float32)
+    input_data = np.concatenate((image, template), axis=0)  
+    # 分配CUDA内存
+    d_input = cuda.mem_alloc(input_data.nbytes)
+    d_output = cuda.mem_alloc(output_data.nbytes)
+    # 将输入数据复制到GPU
+    cuda.memcpy_htod(d_input, input_data)
+    # 执行推理
+    bindings = [int(d_input), int(d_output)]
+    context.execute_v2(bindings)
+    # 将输出数据从GPU复制回主机
+    cuda.memcpy_dtoh(output_data, d_output)
+
+    data_pr_middle = output_data[0,0, overlap_size:batch_size+overlap_size]
+    data_pr_middle = adjust_frame_intensity(data_pr_middle)
+    # 清理显存缓存
+    torch.cuda.empty_cache()
+    del data_pr
+
+    return data_pr_middle
+
 
 def seg_batch(video_adjust, fff, p, Params_post, batch_size, frames_init_seg=100):  
     (nframes, Lx, Ly) = video_adjust.shape
