@@ -67,10 +67,12 @@ def process_frames_init(video_raw, Params_post, batch_size, overlap_size, engine
     return video_adjust, template, Masks, traces
 
 def process_frames_online(video_raw, template, batch_size, overlap_size, engine, Masks):
+    # Preprocessing
     video_raw = preprocessing_img(video_raw, 'robust')
     video_raw =  torch.from_numpy(video_raw.copy())
     template = torch.median(video_raw, dim=0, keepdim=False)[0]
 
+    # image enhancement
     video_adjust = test_online_tensorrt(engine, video_raw, template, batch_size, overlap_size)
     video_adjust_copy = video_adjust.copy()
 
