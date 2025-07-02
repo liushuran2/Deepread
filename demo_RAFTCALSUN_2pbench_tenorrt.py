@@ -59,7 +59,7 @@ if __name__ == '__main__':
     # test file
     parser.add_argument('--model_path', default='/mnt/nas01/LSR/DATA/checkpt/RAFTCAD_result_multiscale_scale_10_stack_28_50mW_fton10mW/', help='path to the trained model')
     # parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/suns_h5/0323/Weights/model_best4220.pth', help='path to the trained model')
-    parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/0629/Weights/model_latest.pth', help='path to the trained model')
+    parser.add_argument('--suns_model_path', default='/mnt/nas01/LSR/DATA/2p_bench/suns/0701/Weights/model_latest.pth', help='path to the trained model')
     parser.add_argument('--gt_flow', type=str, nargs='+', default=None, 
                         help='test file for evaluation')
     parser.add_argument('--gpus', type=int, nargs='+', default=[0])
@@ -408,7 +408,7 @@ if __name__ == '__main__':
                     
                     for i in range(frames_SNR.shape[0]):
                         img = frames_SNR[i]
-                        min_val = np.percentile(img, 88)
+                        min_val = np.percentile(img, 85)
                         max_val = np.percentile(img, 99.8)
                         if max_val > min_val:
                             temp = (img - min_val) / (max_val - min_val)
