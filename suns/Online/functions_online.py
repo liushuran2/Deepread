@@ -262,6 +262,8 @@ def separate_neuron_online_batch(frame_prob, pmaps_b, thresh_pmap_float, minArea
         if p is None:
             p = mp.Pool()
         segs = p.starmap(separate_neuron, [(frame, None, minArea, avgArea, useWT) for frame in pmaps_b], chunksize=1)
+    else:
+        segs = [separate_neuron(frame, None, minArea, avgArea, useWT) for frame in pmaps_b]
     return segs
 
 def separate_neuron_online_batch_Autothreshold(frame_prob, pmaps_b, thresh_pmap_float, minArea, avgArea, useWT=False, useMP=True, p=None):
