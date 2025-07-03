@@ -76,7 +76,6 @@ def frame_processor(Params_post, filename_CNN, p):
                 break
         time.sleep(0.1)
 
-
     print("初始化完成")
     # 在线处理
     idx = len(frame_buffer)
