@@ -47,6 +47,8 @@ from tensorRT.loadengine import load_engine
 import pycuda.driver as cuda
 import torch
 from suns.Network.shallow_unet import ShallowUNet
+import cebra
+from cebra import CEBRA
 
 class FrameProcessor:
     def __init__(self, engine_path, cnn_path, device_id=0, params_post=None, p=None):
@@ -70,6 +72,21 @@ class FrameProcessor:
         if self.engine is None:
             print("加载引擎失败。")
         self.cfx.pop()
+        
+        # 初始化cebra model数据成员
+        self.model = CEBRA(
+            model_architecture="offset10-model", #consider: "offset10-model-mse" if Euclidean
+            batch_size=512,
+            learning_rate=3e-4,
+            temperature=1.12,
+            max_iterations=5000, #we will sweep later; start with default
+            conditional='time', #for supervised, put 'time_delta', or 'delta'
+            output_dimension=3,
+            distance='cosine', #consider 'euclidean'; if you set this, output_dimension min=2
+            device="cuda_if_available",
+            verbose=True,
+            time_offsets=10
+        )
 
         # 其他参数
         self.Params_post = params_post
@@ -97,6 +114,7 @@ class FrameProcessor:
         # input: traces (N*T)
         # output: embeddings (3*T)
         # training slowly
+        self.model = self.model.fit(traces)
 
         self.cfx.pop()
 
@@ -119,8 +137,9 @@ class FrameProcessor:
         # input: traces (N*t=8)
         # output: embeddings (3*t=8)
         # transform  rapidly
+        embeddings = self.model.transform(traces)
 
-        return video_adjust_copy, traces
+        return video_adjust_copy, traces, embeddings
 
     def extrace_trace(self, Masks, prob_map, frame_start=0):
         N = len(Masks) # component number
