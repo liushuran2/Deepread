@@ -116,7 +116,7 @@ def init_online(bb, dims, dimsnb, network_input, pmaps_b, fff, thresh_pmap_float
     network_input_tensor = np.empty_like(network_input)
     for i in range(network_input.shape[0]):
         img = network_input[i]
-        min_val = np.percentile(img, 85)
+        min_val = np.percentile(img, 10)
         max_val = np.percentile(img, 99.8)
         if max_val > min_val:
             temp = (img - min_val) / (max_val - min_val)
